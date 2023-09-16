@@ -26,7 +26,6 @@ class VideoCaptureApp:
     def __init__(self, video_source=0, duration=30):
         self.video_source = video_source
         self.duration = duration
-        self.initalizeCalibrationScreen()
         self.splitEyeProcess(self.video_source)
         
     def initalizeCalibrationScreen(self):
