@@ -9,7 +9,8 @@ from screen_grid import get_screen_grid_points
 from iris import get_iris
 from screen_calibration import calibrate_point
 import mediapipe as mp 
-import utils as ut
+import utils
+from get_available_cams import show_camera_selection_GUI
 
 # Disable the fail-safe mechanism
 pyautogui.FAILSAFE = False
@@ -21,64 +22,11 @@ RIGHT_IRIS = [474,475, 476, 477]
 LEFT_IRIS = [469, 470, 471, 472]
 
 
-'''
-Select from Available cameras.
-'''
-def show_camera_selection_GUI():
-    def get_selected_index(dropdown, root, result):
-        result['selected_index'] = dropdown.current()
-        root.destroy()  # Close the GUI window
-    
-    
-    # Call the function to check available cameras
-    available_cameras = check_available_cameras()
-
-    root = tk.Tk()
-    root.title("Select Camera")
-    root.resizable(False, False)
-    window_width = 400
-    window_height = 150
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = (screen_width // 2) - (window_width // 2)
-    y = (screen_height // 2) - (window_height // 2)
-    root.geometry(f"{window_width}x{window_height}+{x}+{y - window_height // 2}")
-
-    # Create a style for the dropdown
-    style = ttk.Style()
-    style.theme_use("clam")
-    style.configure("TCombobox", padding=6, width=20)
-
-    # Create a list of options for the dropdown
-    options = []
-    for opt in available_cameras:
-        options.append("Camera: " + str(opt))
-
-
-    # Create a tkinter variable to store the selected option
-    selected_option = tk.StringVar(root)
-
-    # Create the dropdown widget
-    dropdown = ttk.Combobox(root, textvariable=selected_option, values=options)
-    dropdown.pack(pady=20)
-
-    # Create a dictionary to store the result
-    result = {'selected_index': None}
-
-    # Create a button to get the selected index
-    button = ttk.Button(root, text="Use Camera", command=lambda: get_selected_index(dropdown, root, result))
-    button.pack()
-
-    root.mainloop()
-    return result['selected_index']
-'''
-Select from Available cameras - Ended.
-'''
-
 class VideoCaptureApp:
     def __init__(self, video_source=0, duration=30):
         self.video_source = video_source
         self.duration = duration
+        self.initalizeCalibrationScreen()
         self.splitEyeProcess(self.video_source)
         
     def initalizeCalibrationScreen(self):
@@ -172,37 +120,16 @@ class VideoCaptureApp:
         # Consider only left eye cordinates since both eyes move simultaneously.
         return pts[0]
        
-    def move_mouse_to_point(self, pt):
-        try:
-            # Get the current mouse position
-            current_x, current_y = pyautogui.position()
-
-            # Move the mouse to the specified (x, y) point
-            # pyautogui.moveTo(pt[0], pt[1], duration=0.5)
-            pyautogui.moveTo(pt[0], pt[1])
-
-            # Optionally, you can print the new position
-            print(f"Mouse moved to ({pt[0]}, {pt[1]})")
-
-        except Exception as e:
-            print(f"An error occurred: {e}")
             
     def startProcess(self):
-        
-        # while True:
-        #     x = int(input("X: "))
-        #     y = int(input("Y: "))
-
-        #     mouse_pt = calibrate_point((x, y), self.eye_points, self.screen_points)
-        #     self.move_mouse_to_point(mouse_pt)
 
         # Pause for 2 seconds
-        time.sleep(2)
+        # time.sleep(2)
 
         self.vid = cv2.VideoCapture(self.video_source)
         
         # Add a small delay after opening the camera (optional, you can adjust the value as needed)
-        cv2.waitKey(1000)
+        # cv2.waitKey(1000)
 
         mp_face_mesh = mp.solutions.face_mesh
         with mp_face_mesh.FaceMesh(max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.5, min_tracking_confidence=0.5) as face_mesh:
@@ -228,24 +155,26 @@ class VideoCaptureApp:
 
                 results = face_mesh.process(rgb_frame)
 
-                if results.multi_face_landmarks:
+                if not results.multi_face_landmarks:
+                    continue                
 
-                    landmarks = results.multi_face_landmarks[0].landmark
-                    # Output: [(23,43), (13,34), ...]
-                    mesh_points = [(int(p.x * img_w), int(p.y * img_h)) for p in landmarks] 
-                    # Output: [[23,43], [13,34], ...], need it in this format for valid list of integer indices to slice.
-                    mesh_points = np.array(mesh_points) 
+                landmarks = results.multi_face_landmarks[0].landmark
+                # Output: [(23,43), (13,34), ...]
+                mesh_points = [(int(p.x * img_w), int(p.y * img_h)) for p in landmarks] 
+                # Output: [[23,43], [13,34], ...], need it in this format for valid list of integer indices to slice.
+                mesh_points = np.array(mesh_points) 
 
-                    (l_cx, l_cy), l_radius = cv2.minEnclosingCircle(mesh_points[LEFT_IRIS])
-                    (r_cx, r_cy), r_radius = cv2.minEnclosingCircle(mesh_points[RIGHT_IRIS])
-                    center_left = np.array([l_cx, l_cy], dtype=np.int32)
-                    center_right = np.array([r_cx, r_cy], dtype=np.int32)
+                (l_cx, l_cy), l_radius = cv2.minEnclosingCircle(mesh_points[LEFT_IRIS])
+                (r_cx, r_cy), r_radius = cv2.minEnclosingCircle(mesh_points[RIGHT_IRIS])
+                center_left = np.array([l_cx, l_cy], dtype=np.int32)
+                center_right = np.array([r_cx, r_cy], dtype=np.int32)
 
-                    mouse_pt = calibrate_point(center_left, self.eye_points, self.screen_points)
-                    
-                    print(mouse_pt)
+                mouse_pt = calibrate_point(center_left, self.eye_points, self.screen_points)
+                
+                # print(mouse_pt)
 
-                    self.move_mouse_to_point(mouse_pt)
+                
+                # utils.move_mouse_to_point(mouse_pt)
 
 
 
@@ -280,61 +209,63 @@ class VideoCaptureApp:
 
                 results = face_mesh.process(rgb_frame)
 
-                if results.multi_face_landmarks:
+                if not results.multi_face_landmarks:
+                    continue
+
                     
-                    landmarks = results.multi_face_landmarks[0].landmark
-                    # Output: [(23,43), (13,34), ...]
-                    mesh_points = [(int(p.x * img_w), int(p.y * img_h)) for p in landmarks] 
-                    # Output: [[23,43], [13,34], ...], need it in this format for valid list of integer indices to slice.
-                    mesh_points = np.array(mesh_points) 
+                landmarks = results.multi_face_landmarks[0].landmark
+                # Output: [(23,43), (13,34), ...]
+                mesh_points = [(int(p.x * img_w), int(p.y * img_h)) for p in landmarks] 
+                # Output: [[23,43], [13,34], ...], need it in this format for valid list of integer indices to slice.
+                mesh_points = np.array(mesh_points) 
 
-                    (l_cx, l_cy), l_radius = cv2.minEnclosingCircle(mesh_points[LEFT_IRIS])
-                    (r_cx, r_cy), r_radius = cv2.minEnclosingCircle(mesh_points[RIGHT_IRIS])
-                    center_left = np.array([l_cx, l_cy], dtype=np.int32)
-                    center_right = np.array([r_cx, r_cy], dtype=np.int32)
+                (l_cx, l_cy), l_radius = cv2.minEnclosingCircle(mesh_points[LEFT_IRIS])
+                (r_cx, r_cy), r_radius = cv2.minEnclosingCircle(mesh_points[RIGHT_IRIS])
+                center_left = np.array([l_cx, l_cy], dtype=np.int32)
+                center_right = np.array([r_cx, r_cy], dtype=np.int32)
 
-                    cv2.circle(frame, center_left, 1, (0,255,0), -1, cv2.LINE_AA)
-                    cv2.circle(frame, center_right, 2, (0,255,0), -1, cv2.LINE_AA)
+                cv2.circle(frame, center_left, 1, (0,255,0), -1, cv2.LINE_AA)
+                cv2.circle(frame, center_right, 2, (0,255,0), -1, cv2.LINE_AA)
 
-                    cv2.polylines(frame, [mesh_points[RIGHT_EYE]], isClosed=True, color=(0, 0, 255), thickness=1)
-                    x, y, width, height = cv2.boundingRect(mesh_points[RIGHT_EYE])
+                cv2.polylines(frame, [mesh_points[RIGHT_EYE]], isClosed=True, color=(0, 0, 255), thickness=1)
+                x, y, width, height = cv2.boundingRect(mesh_points[RIGHT_EYE])
 
-                    cv2.rectangle(frame, (x, y), (x + width, y + height), (200, 21, 36), 2)
+                cv2.rectangle(frame, (x, y), (x + width, y + height), (200, 21, 36), 2)
 
-                    if ut.point_inside_rectangle(center_right[0], center_right[1], x, y, width, height):
-                        relative_x, relative_y = ut.relative_position(center_right[0], center_right[1], x, y)
-                        
-                        roi = frame[y:y+height, x:x+width]
-                        cells = ut.split_rectangle_into_grid(roi, x, y, width, height)
+                if utils.point_inside_rectangle(center_right[0], center_right[1], x, y, width, height):
+                    relative_x, relative_y = utils.relative_position(center_right[0], center_right[1], x, y)
+                    
+                    roi = frame[y:y+height, x:x+width]
+                    cells = utils.split_rectangle_into_grid(roi, x, y, width, height)
 
-                        for row in cells:
-                            for cell in row:
+                    for row in cells:
+                        for cell in row:
 
-                                cell_x = cell[0]
-                                cell_y = cell[1]
-                                cell_width = cell[2]
-                                cell_height = cell[3]
-                                cell_label = cell[4]
+                            cell_x = cell[0]
+                            cell_y = cell[1]
+                            cell_width = cell[2]
+                            cell_height = cell[3]
+                            cell_label = cell[4]
 
-                                if cell_x <= center_right[0] < cell_x + cell_width and cell_y <= center_right[1] < cell_y + cell_height:
-                                    cv2.rectangle(frame, (cell_x, cell_y), (cell_x + cell_width, cell_y + cell_height), (0, 0, 255), 1)
-                                    print(cell_label)
+                            if cell_x <= center_right[0] < cell_x + cell_width and cell_y <= center_right[1] < cell_y + cell_height:
+                                cv2.rectangle(frame, (cell_x, cell_y), (cell_x + cell_width, cell_y + cell_height), (0, 0, 255), 1)
+                                print(cell_label)
 
-                                    my_dict = {
-                                        "top-left" : np.array([-1, -1]),
-                                        "top" : np.array([0, -1]), 
-                                        "top-right": np.array([1, -1]),
-                                        "middle-left": np.array([-1, 0]), 
-                                        "middle": np.array([0, 0]), 
-                                        "middle-right" : np.array([1, 0]),
-                                        "bottom-left": np.array([-1, 1]), 
-                                        "bottom": np.array([0, 1]), 
-                                        "bottom-right": np.array([1, 1])
-                                    }
-                                    my_dict[cell_label] *= 10
-                                    ut.move_mouse_to_point(my_dict[cell_label])
-                    else:
-                        print("The point is outside the rectangle.")
+                                my_dict = {
+                                    "top-left" : np.array([-1, -1]),
+                                    "top" : np.array([0, -1]), 
+                                    "top-right": np.array([1, -1]),
+                                    "middle-left": np.array([-1, 0]), 
+                                    "middle": np.array([0, 0]), 
+                                    "middle-right" : np.array([1, 0]),
+                                    "bottom-left": np.array([-1, 1]), 
+                                    "bottom": np.array([0, 1]), 
+                                    "bottom-right": np.array([1, 1])
+                                }
+                                my_dict[cell_label] *= 10
+                                # utils.move_mouse_to_point(my_dict[cell_label])
+                else:
+                    print("The point is outside the rectangle.")
 
                 # cv2.imshow('Mask', mask)     
                 cv2.imshow('img', frame)

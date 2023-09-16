@@ -3,22 +3,6 @@ import numpy as np
 import mediapipe as mp 
 mp_face_mesh = mp.solutions.face_mesh
 
-def custom_excepthook(exctype, value, traceback_obj):
-    # Print the exception type and value
-    print("Custom excepthook called:")
-    print(f"Exception type: {exctype}")
-    print(f"Exception value: {value}")
-
-    # Extract the filename and line number from the traceback
-    tb_frame = traceback_obj.tb_frame
-    filename = tb_frame.f_code.co_filename
-    lineno = traceback_obj.tb_lineno
-    print(f"Exception handled in file: {filename}, line: {lineno}")
-
-# Assign the custom excepthook function to sys.excepthook
-sys.excepthook = custom_excepthook
-
-
 LEFT_IRIS = [474,475, 476, 477]
 RIGHT_IRIS = [469, 470, 471, 472]
 
